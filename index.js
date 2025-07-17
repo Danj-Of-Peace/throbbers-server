@@ -3,14 +3,20 @@ import fetch from 'node-fetch';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import admin from 'firebase-admin';
-import serviceAccount from './firebase-service-account.json' assert { type: 'json' };
+
+dotenv.config();
+
+if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  console.error('Missing FIREBASE_SERVICE_ACCOUNT_JSON environment variable!');
+  process.exit(1);
+}
+
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: process.env.FIREBASE_DB_URL
 });
-
-dotenv.config();
 
 const app = express();
 app.use(cors());
@@ -20,13 +26,11 @@ const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI;
 
-// Helper: base64 encode client credentials
 function getBasicAuthHeader() {
   const creds = `${CLIENT_ID}:${CLIENT_SECRET}`;
   return 'Basic ' + Buffer.from(creds).toString('base64');
 }
 
-// === 1. Spotify OAuth callback ===
 app.get('/callback', async (req, res) => {
   const code = req.query.code;
 
@@ -52,10 +56,8 @@ app.get('/callback', async (req, res) => {
       return res.status(400).json(data);
     }
 
-    // You could also save these in Firebase here if needed
     const { access_token, refresh_token, expires_in } = data;
 
-    // Redirect back to frontend with tokens in URL hash
     const redirectUrl = `https://your-frontend-url/#access_token=${access_token}&refresh_token=${refresh_token}`;
     res.redirect(redirectUrl);
   } catch (err) {
@@ -64,7 +66,6 @@ app.get('/callback', async (req, res) => {
   }
 });
 
-// === 2. Refresh token endpoint ===
 app.get('/refresh', async (req, res) => {
   const refresh_token = req.query.refresh_token;
   if (!refresh_token) return res.status(400).send('Missing refresh_token');
@@ -95,6 +96,7 @@ app.get('/refresh', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
 app.get('/test-firebase', async (req, res) => {
   try {
     const db = admin.database();
@@ -105,6 +107,7 @@ app.get('/test-firebase', async (req, res) => {
     res.status(500).send('❌ Firebase write failed');
   }
 });
+
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
