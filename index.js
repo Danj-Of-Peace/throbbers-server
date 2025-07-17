@@ -24,9 +24,8 @@ app.use(express.json());
 
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
-const FRONTEND_URI = process.env.FRONTEND_URI;
-const redirectUrl = `${FRONTEND_URI}#access_token=${access_token}&refresh_token=${refresh_token}`;
-res.redirect(redirectUrl);
+const REDIRECT_URI = process.env.REDIRECT_URI;
+const FRONTEND_URI = process.env.FRONTEND_URI || 'https://throbbers-host.web.app/';
 
 function getBasicAuthHeader() {
   const creds = `${CLIENT_ID}:${CLIENT_SECRET}`;
@@ -65,8 +64,7 @@ app.get('/callback', async (req, res) => {
 
     const { access_token, refresh_token } = data;
 
-    // 🔁 Change to your actual host frontend
-    const redirectUrl = `https://throbbers-host.web.app/#access_token=${access_token}&refresh_token=${refresh_token}`;
+    const redirectUrl = `${FRONTEND_URI}#access_token=${access_token}&refresh_token=${refresh_token}`;
     res.redirect(redirectUrl);
   } catch (err) {
     console.error('Error during token exchange:', err);
