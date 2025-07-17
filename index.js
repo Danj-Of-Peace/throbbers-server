@@ -2,6 +2,13 @@ import express from 'express';
 import fetch from 'node-fetch';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import admin from 'firebase-admin';
+import serviceAccount from './firebase-service-account.json' assert { type: 'json' };
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: process.env.FIREBASE_DB_URL
+});
 
 dotenv.config();
 
@@ -88,6 +95,16 @@ app.get('/refresh', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+app.get('/test-firebase', async (req, res) => {
+  try {
+    const db = admin.database();
+    await db.ref('test').set({ message: 'It works!' });
+    res.send('✅ Firebase write successful');
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('❌ Firebase write failed');
+  }
+});
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
