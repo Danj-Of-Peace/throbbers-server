@@ -24,12 +24,16 @@ app.use(express.json());
 
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
-const REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI;
+const REDIRECT_URI = process.env.REDIRECT_URI;
 
 function getBasicAuthHeader() {
   const creds = `${CLIENT_ID}:${CLIENT_SECRET}`;
   return 'Basic ' + Buffer.from(creds).toString('base64');
 }
+
+app.get('/', (req, res) => {
+  res.send('✅ Spotify Auth Server is running');
+});
 
 app.get('/callback', async (req, res) => {
   const code = req.query.code;
@@ -52,13 +56,15 @@ app.get('/callback', async (req, res) => {
 
     const data = await tokenRes.json();
 
-    if (data.error) {
+    if (data.error || !data.access_token || !data.refresh_token) {
+      console.error('Error during token exchange:', data);
       return res.status(400).json(data);
     }
 
-    const { access_token, refresh_token, expires_in } = data;
+    const { access_token, refresh_token } = data;
 
-    const redirectUrl = `https://your-frontend-url/#access_token=${access_token}&refresh_token=${refresh_token}`;
+    // 🔁 Change to your actual host frontend
+    const redirectUrl = `https://throbbers-host.web.app/#access_token=${access_token}&refresh_token=${refresh_token}`;
     res.redirect(redirectUrl);
   } catch (err) {
     console.error('Error during token exchange:', err);
