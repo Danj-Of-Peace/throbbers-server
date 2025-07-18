@@ -38,6 +38,7 @@ app.get('/', (req, res) => {
 
 app.get('/callback', async (req, res) => {
   const code = req.query.code;
+  const db = admin.database();
 
   if (!code) return res.status(400).send('Missing code');
 
@@ -56,18 +57,25 @@ app.get('/callback', async (req, res) => {
     });
 
     const data = await tokenRes.json();
+    console.log('🎧 Token response from Spotify:', data);
 
     if (data.error || !data.access_token || !data.refresh_token) {
-      console.error('Error during token exchange:', data);
+      console.error('❌ Error during token exchange:', data);
       return res.status(400).json(data);
     }
 
     const { access_token, refresh_token } = data;
 
+    // ✅ Save to Firebase
+    await db.ref('spotifyAccessToken').set(access_token);
+    await db.ref('spotifyRefreshToken').set(refresh_token);
+    console.log('✅ Tokens saved to Firebase');
+
+    // ✅ Redirect to frontend with tokens as hash (optional for your current login flow)
     const redirectUrl = `${FRONTEND_URI}#access_token=${access_token}&refresh_token=${refresh_token}`;
     res.redirect(redirectUrl);
   } catch (err) {
-    console.error('Error during token exchange:', err);
+    console.error('❌ Error during token exchange:', err);
     res.status(500).send('Token exchange failed');
   }
 });
