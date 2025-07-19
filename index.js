@@ -36,6 +36,11 @@ app.get('/', (req, res) => {
   res.send('✅ Spotify Auth Server is running');
 });
 
+// ✅ PING route to wake the server
+app.get('/ping', (req, res) => {
+  res.send('pong');
+});
+
 app.get('/callback', async (req, res) => {
   const code = req.query.code;
   const db = admin.database();
@@ -71,7 +76,7 @@ app.get('/callback', async (req, res) => {
     await db.ref('spotifyRefreshToken').set(refresh_token);
     console.log('✅ Tokens saved to Firebase');
 
-    // ✅ Redirect to frontend with tokens as hash (optional for your current login flow)
+    // ✅ Redirect to frontend with tokens as hash
     const redirectUrl = `${FRONTEND_URI}#access_token=${access_token}&refresh_token=${refresh_token}`;
     res.redirect(redirectUrl);
   } catch (err) {
@@ -109,8 +114,6 @@ app.get('/refresh', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
-
 app.get('/test-firebase', async (req, res) => {
   try {
     const db = admin.database();
@@ -122,6 +125,7 @@ app.get('/test-firebase', async (req, res) => {
   }
 });
 
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
