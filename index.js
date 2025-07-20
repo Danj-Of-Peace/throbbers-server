@@ -3,6 +3,7 @@ import fetch from 'node-fetch';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import admin from 'firebase-admin';
+import { google } from 'googleapis';
 
 dotenv.config();
 
@@ -122,6 +123,56 @@ app.get('/test-firebase', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send('❌ Firebase write failed');
+  }
+});
+
+// === NEW: Google Sheets setup ===
+
+if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+  console.error('Missing GOOGLE_SERVICE_ACCOUNT_JSON environment variable!');
+  process.exit(1);
+}
+
+if (!process.env.GOOGLE_SHEET_ID) {
+  console.error('Missing GOOGLE_SHEET_ID environment variable!');
+  process.exit(1);
+}
+
+const auth = new google.auth.GoogleAuth({
+  credentials: googleServiceAccount,
+  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+});
+
+const sheets = google.sheets({ version: 'v4', auth });
+const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
+
+// New POST endpoint to record votes
+app.post('/record-votes', async (req, res) => {
+  try {
+    const { artist, votes } = req.body;
+    if (!artist || !votes || typeof votes !== 'object') {
+      return res.status(400).send('Invalid payload');
+    }
+
+    const timestamp = new Date().toISOString();
+
+    // Flatten votes into an array [voter1, vote1, voter2, vote2, ...]
+    const votesFlat = Object.entries(votes).flat();
+
+    // Row format: Timestamp | Artist | voter1 | vote1 | voter2 | vote2 | ...
+    const row = [timestamp, artist, ...votesFlat];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Sheet1!A1',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [row] },
+    });
+
+    res.status(200).send('Votes recorded to Google Sheets');
+  } catch (err) {
+    console.error('Error recording votes:', err);
+    res.status(500).send('Failed to record votes');
   }
 });
 
