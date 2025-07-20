@@ -20,7 +20,12 @@ admin.initializeApp({
 });
 
 const app = express();
-app.use(cors());
+
+// ✅ Fix CORS for your frontend
+app.use(cors({
+  origin: 'https://throbbers-2025.web.app'
+}));
+
 app.use(express.json());
 
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
@@ -37,7 +42,6 @@ app.get('/', (req, res) => {
   res.send('✅ Spotify Auth Server is running');
 });
 
-// ✅ PING route to wake the server
 app.get('/ping', (req, res) => {
   res.send('pong');
 });
@@ -72,12 +76,10 @@ app.get('/callback', async (req, res) => {
 
     const { access_token, refresh_token } = data;
 
-    // ✅ Save to Firebase
     await db.ref('spotifyAccessToken').set(access_token);
     await db.ref('spotifyRefreshToken').set(refresh_token);
     console.log('✅ Tokens saved to Firebase');
 
-    // ✅ Redirect to frontend with tokens as hash
     const redirectUrl = `${FRONTEND_URI}#access_token=${access_token}&refresh_token=${refresh_token}`;
     res.redirect(redirectUrl);
   } catch (err) {
@@ -126,7 +128,7 @@ app.get('/test-firebase', async (req, res) => {
   }
 });
 
-// === NEW: Google Sheets setup ===
+// === Google Sheets setup ===
 
 if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
   console.error('Missing GOOGLE_SERVICE_ACCOUNT_JSON environment variable!');
@@ -146,39 +148,34 @@ const auth = new google.auth.GoogleAuth({
 const sheets = google.sheets({ version: 'v4', auth });
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 
-// New POST endpoint to record votes
+// ✅ POST endpoint to record votes
 app.post('/record-votes', async (req, res) => {
   try {
     const { artist, votes } = req.body;
     if (!artist || !votes || typeof votes !== 'object') {
-      return res.status(400).send('Invalid payload');
+      return res.status(400).json({ error: 'Invalid payload' });
     }
 
     const timestamp = new Date().toISOString();
-
-    // Flatten votes into an array [voter1, vote1, voter2, vote2, ...]
     const votesFlat = Object.entries(votes).flat();
-
-    // Row format: Timestamp | Artist | voter1 | vote1 | voter2 | vote2 | ...
     const row = [timestamp, artist, ...votesFlat];
 
-    console.log('✅ Google Sheets append request sent');
-   
-    await sheets.spreadsheets.values.append({
+    console.log('📥 Appending row to Google Sheet:', row);
+
+    const result = await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
       range: 'VOTES!A1',
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [row] },
     });
 
-console.log('✅ Appended row:', result.data.updates);
+    console.log('✅ Google Sheets append successful:', result.data.updates);
+    res.status(200).json({ success: true });
 
-    res.status(200).send('Votes recorded to Google Sheets');
   } catch (err) {
-    console.error('Error recording votes:', err);
-    res.status(500).send('Failed to record votes');
+    console.error('❌ Error recording votes:', err.response?.data || err.message || err);
+    res.status(500).json({ error: 'Failed to record votes' });
   }
-  console.error('❌ Error recording votes:', err.response?.data || err.message || err);
 });
 
 const PORT = process.env.PORT || 3000;
