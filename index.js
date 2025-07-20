@@ -164,7 +164,7 @@ app.post('/record-votes', async (req, res) => {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Sheet1!A1',
+      range: 'VOTES!A1',
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [row] },
     });
