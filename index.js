@@ -139,7 +139,7 @@ if (!process.env.GOOGLE_SHEET_ID) {
 }
 
 const auth = new google.auth.GoogleAuth({
-  credentials: googleServiceAccount,
+  credentials: serviceAccount,
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
