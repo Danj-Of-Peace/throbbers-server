@@ -162,6 +162,8 @@ app.post('/record-votes', async (req, res) => {
     // Row format: Timestamp | Artist | voter1 | vote1 | voter2 | vote2 | ...
     const row = [timestamp, artist, ...votesFlat];
 
+    console.log('✅ Google Sheets append request sent');
+   
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
       range: 'VOTES!A1',
@@ -169,11 +171,14 @@ app.post('/record-votes', async (req, res) => {
       requestBody: { values: [row] },
     });
 
+console.log('✅ Appended row:', result.data.updates);
+
     res.status(200).send('Votes recorded to Google Sheets');
   } catch (err) {
     console.error('Error recording votes:', err);
     res.status(500).send('Failed to record votes');
   }
+  console.error('❌ Error recording votes:', err.response?.data || err.message || err);
 });
 
 const PORT = process.env.PORT || 3000;
