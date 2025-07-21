@@ -161,7 +161,7 @@ app.post('/record-votes', async (req, res) => {
 
     // 🔄 Get all active participants (guests + host)
     const [guestsSnap, hostSnap] = await Promise.all([
-      admin.database().ref('activeGuests').once('value'),
+      admin.database().ref('guests').once('value'),  // changed from 'activeGuests'
       admin.database().ref('host').once('value')
     ]);
 
