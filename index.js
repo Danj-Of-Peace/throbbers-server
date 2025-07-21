@@ -159,18 +159,24 @@ app.post('/record-votes', async (req, res) => {
 
     const timestamp = new Date().toISOString();
 
-    // 🔄 Fetch active guests from Firebase
-    const guestsSnap = await admin.database().ref('activeGuests').once('value');
-    const guestListObj = guestsSnap.val() || {};
-    const guestNames = Object.keys(guestListObj);
+    // 🔄 Fetch activeGuests and host from Firebase
+    const [guestsSnap, hostSnap] = await Promise.all([
+      admin.database().ref('activeGuests').once('value'),
+      admin.database().ref('host').once('value')
+    ]);
 
-    // 🔤 Sort guest names alphabetically
-    const sortedGuests = guestNames.sort((a, b) => a.localeCompare(b));
+    const guestList = guestsSnap.val() || {};
+    const hostList = hostSnap.val() || {};
 
-    // 🧾 Build a flat array [name1, vote1, name2, vote2, ...]
-    const votesFlat = sortedGuests.flatMap(name => [name, votes[name] || ""]);
+    // 👥 Merge all participant names
+    const allUsers = Object.keys({ ...guestList, ...hostList });
 
-    // 🧠 Final row for the sheet
+    // 🔤 Sort alphabetically
+    const sortedUsers = allUsers.sort((a, b) => a.localeCompare(b));
+
+    // 🧾 Build row: [timestamp, artist, name1, vote1, name2, vote2, ...]
+    const votesFlat = sortedUsers.flatMap(name => [name, votes[name] || ""]);
+
     const row = [timestamp, artist, ...votesFlat];
 
     console.log('📥 Appending row to Google Sheet:', row);
