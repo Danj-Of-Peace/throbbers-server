@@ -152,12 +152,25 @@ const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 app.post('/record-votes', async (req, res) => {
   try {
     const { artist, votes } = req.body;
+
     if (!artist || !votes || typeof votes !== 'object') {
       return res.status(400).json({ error: 'Invalid payload' });
     }
 
     const timestamp = new Date().toISOString();
-    const votesFlat = Object.entries(votes).flat();
+
+    // 🔄 Fetch active guests from Firebase
+    const guestsSnap = await admin.database().ref('activeGuests').once('value');
+    const guestListObj = guestsSnap.val() || {};
+    const guestNames = Object.keys(guestListObj);
+
+    // 🔤 Sort guest names alphabetically
+    const sortedGuests = guestNames.sort((a, b) => a.localeCompare(b));
+
+    // 🧾 Build a flat array [name1, vote1, name2, vote2, ...]
+    const votesFlat = sortedGuests.flatMap(name => [name, votes[name] || ""]);
+
+    // 🧠 Final row for the sheet
     const row = [timestamp, artist, ...votesFlat];
 
     console.log('📥 Appending row to Google Sheet:', row);
