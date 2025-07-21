@@ -178,6 +178,20 @@ app.post('/record-votes', async (req, res) => {
   }
 });
 
+app.post('/clear-sheet', async (req, res) => {
+  try {
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'VOTES!A2:Z', // assumes your headers are in row 1
+    });
+
+    res.status(200).json({ message: '✅ Google Sheet cleared.' });
+  } catch (err) {
+    console.error('❌ Failed to clear Google Sheet:', err);
+    res.status(500).json({ message: 'Failed to clear Google Sheet.' });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
