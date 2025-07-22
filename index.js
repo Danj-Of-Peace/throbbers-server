@@ -37,26 +37,22 @@ function getBasicAuthHeader() {
   return 'Basic ' + Buffer.from(creds).toString('base64');
 }
 
+// 🔐 Translate safeKey back to original artist name
 async function getOriginalArtistName(safeKeyName, artistOrder = []) {
   const found = artistOrder.find(entry =>
     typeof entry === 'object' && entry.safe === safeKeyName
   );
   if (found?.original) return found.original;
 
-  // fallback: check artistNames in Firebase
   const db = admin.database();
   const namesSnap = await db.ref('artistNames').once('value');
   const artistNames = namesSnap.val() || {};
   return artistNames[safeKeyName] || safeKeyName;
 }
 
-app.get('/', (req, res) => {
-  res.send('✅ Spotify Auth Server is running');
-});
+app.get('/', (req, res) => res.send('✅ Spotify Auth Server is running'));
 
-app.get('/ping', (req, res) => {
-  res.send('pong');
-});
+app.get('/ping', (req, res) => res.send('pong'));
 
 app.get('/callback', async (req, res) => {
   const code = req.query.code;
@@ -79,23 +75,19 @@ app.get('/callback', async (req, res) => {
     });
 
     const data = await tokenRes.json();
-    console.log('🎧 Token response from Spotify:', data);
-
     if (data.error || !data.access_token || !data.refresh_token) {
       console.error('❌ Error during token exchange:', data);
       return res.status(400).json(data);
     }
 
     const { access_token, refresh_token } = data;
-
     await db.ref('spotifyAccessToken').set(access_token);
     await db.ref('spotifyRefreshToken').set(refresh_token);
-    console.log('✅ Tokens saved to Firebase');
 
     const redirectUrl = `${FRONTEND_URI}#access_token=${access_token}&refresh_token=${refresh_token}`;
     res.redirect(redirectUrl);
   } catch (err) {
-    console.error('❌ Error during token exchange:', err);
+    console.error('❌ Token exchange error:', err);
     res.status(500).send('Token exchange failed');
   }
 });
@@ -124,23 +116,12 @@ app.get('/refresh', async (req, res) => {
 
     res.json(data);
   } catch (err) {
-    console.error('Error refreshing token:', err);
+    console.error('❌ Refresh token error:', err);
     res.status(500).send('Refresh failed');
   }
 });
 
-app.get('/test-firebase', async (req, res) => {
-  try {
-    const db = admin.database();
-    await db.ref('test').set({ message: 'It works!' });
-    res.send('✅ Firebase write successful');
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('❌ Firebase write failed');
-  }
-});
-
-// === Google Sheets setup ===
+// === Google Sheets Setup ===
 
 if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
   console.error('Missing GOOGLE_SERVICE_ACCOUNT_JSON environment variable!');
@@ -160,12 +141,12 @@ const auth = new google.auth.GoogleAuth({
 const sheets = google.sheets({ version: 'v4', auth });
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 
-// ✅ Utility to safely encode Firebase keys
+// 🔑 Sanitize artist name for Firebase-safe key
 function safeKey(name) {
   return name.replace(/[.#$/\[\]]/g, '_');
 }
 
-// ✅ Function to fetch artist names from ARTISTS!B2:B
+// 📥 Fetch artist names from ARTISTS!B2:B
 async function fetchGoogleSheet() {
   try {
     const response = await sheets.spreadsheets.values.get({
@@ -183,14 +164,14 @@ async function fetchGoogleSheet() {
       throw new Error(`Expected header 'ARTIST' in ARTISTS!B1 but found '${header}'`);
     }
 
-    const artistNames = rows.slice(1).map(r => r[0]?.trim()).filter(name => name);
-    return artistNames.map(name => ({ ARTIST: name }));
+    return rows.slice(1).map(row => ({ ARTIST: row[0]?.trim() })).filter(r => r.ARTIST);
   } catch (err) {
-    console.error('❌ Error fetching Google Sheet artist column B:', err);
+    console.error('❌ Google Sheet fetch error:', err);
     throw err;
   }
 }
 
+// 📝 Record votes and log to Google Sheets
 app.post('/record-votes', async (req, res) => {
   try {
     const { artist: safeArtist, votes } = req.body;
@@ -218,7 +199,7 @@ app.post('/record-votes', async (req, res) => {
 
     await db.ref(`votes/${safeArtist}`).set({
       originalName: originalArtist,
-      votes: votes,
+      votes,
       timestamp
     });
 
@@ -244,15 +225,16 @@ app.post('/record-votes', async (req, res) => {
       },
     });
 
-    console.log('✅ Vote recorded to sheet:', row);
+    console.log('✅ Vote recorded:', row);
     res.status(200).json({ success: true });
 
   } catch (err) {
-    console.error('❌ Failed to record votes:', err.response?.data || err.message || err);
+    console.error('❌ Vote record failed:', err.response?.data || err.message || err);
     res.status(500).json({ error: 'Failed to record votes' });
   }
 });
 
+// 📤 Expose artist info: { order: [], names: {} }
 app.get('/artist-info', async (req, res) => {
   try {
     const artistData = await fetchGoogleSheet();
@@ -260,12 +242,11 @@ app.get('/artist-info', async (req, res) => {
     const artistList = [];
 
     for (const row of artistData) {
-      const artistName = row.ARTIST?.trim();
-      if (!artistName) continue;
-
-      const safe = safeKey(artistName);
+      const name = row.ARTIST?.trim();
+      if (!name) continue;
+      const safe = safeKey(name);
       if (!artistNames[safe]) {
-        artistNames[safe] = artistName;
+        artistNames[safe] = name;
         artistList.push(safe);
       }
     }
@@ -279,16 +260,18 @@ app.get('/artist-info', async (req, res) => {
       artistOrder = [...artistList].sort(() => 0.5 - Math.random());
       await artistOrderRef.set(artistOrder);
       await db.ref('artistNames').set(artistNames);
-      console.log('✅ Created and stored new artistOrder + artistNames');
+      console.log('✅ Stored new artistOrder and artistNames');
     }
 
     res.json({ order: artistOrder, names: artistNames });
+
   } catch (err) {
     console.error('❌ Failed to return artist info:', err);
     res.status(500).json({ error: 'Failed to load artist info' });
   }
 });
 
+// 🧹 Clear Google Sheet vote logs
 app.post('/clear-sheet', async (req, res) => {
   try {
     await sheets.spreadsheets.values.clear({
