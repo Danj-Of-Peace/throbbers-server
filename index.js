@@ -4,6 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import admin from 'firebase-admin';
 import { google } from 'googleapis';
+import { get, ref, set } from 'firebase-admin/database';
 
 dotenv.config();
 
@@ -230,19 +231,40 @@ app.post('/record-votes', async (req, res) => {
 
 app.get('/artist-info', async (req, res) => {
   try {
-    const db = admin.database();
-    const [orderSnap, namesSnap] = await Promise.all([
-      db.ref('artistOrder').once('value'),
-      db.ref('artistNames').once('value')
-    ]);
+    const artistData = await fetchGoogleSheet(); // your Google Sheets artist info
+    const artistNames = {};
+    const trackMap = {};
+    const artistList = [];
 
-    const order = orderSnap.val() || [];
-    const names = namesSnap.val() || {};
+    for (const row of artistData) {
+      const artistName = row.ARTIST?.trim();
+      if (!artistName) continue;
 
-    res.json({ order, names });
+      const safe = safeKey(artistName);
+      if (!artistNames[safe]) {
+        artistNames[safe] = artistName;
+        artistList.push(safe);
+      }
+
+      // collect track info if needed
+    }
+
+    const artistOrderRef = ref(db, 'artistOrder');
+    let orderSnap = await get(artistOrderRef);
+    let artistOrder = orderSnap.val();
+
+    if (!artistOrder || !Array.isArray(artistOrder) || artistOrder.length === 0) {
+      // Generate and save a new order
+      artistOrder = [...artistList].sort(() => 0.5 - Math.random());
+      await set(artistOrderRef, artistOrder);
+      await set(ref(db, 'artistNames'), artistNames);
+      console.log('✅ Created and stored new artistOrder + artistNames');
+    }
+
+    res.json({ order: artistOrder, names: artistNames });
   } catch (err) {
-    console.error('❌ Failed to fetch artist info:', err);
-    res.status(500).json({ error: 'Failed to fetch artist info' });
+    console.error('❌ Failed to return artist info:', err);
+    res.status(500).json({ error: 'Failed to load artist info' });
   }
 });
 
