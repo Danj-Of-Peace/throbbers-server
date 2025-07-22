@@ -21,7 +21,6 @@ admin.initializeApp({
 
 const app = express();
 
-// ✅ Fix CORS for your frontend
 app.use(cors({
   origin: 'https://throbbers-2025.web.app'
 }));
@@ -160,30 +159,26 @@ function safeKey(name) {
   return name.replace(/[.#$/\[\]]/g, '_');
 }
 
-// ✅ Function to fetch artist data from "ARTISTS" tab, column B only (artists in B2:B)
+// ✅ Function to fetch artist names from ARTISTS!B2:B
 async function fetchGoogleSheet() {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'ARTISTS!B1:B', // Start at B1 to get header, then all artists below
+      range: 'ARTISTS!B1:B',
     });
 
     const rows = response.data.values;
     if (!rows || rows.length < 2) {
-      throw new Error('No artist data found in column B.');
+      throw new Error('No artist data found in ARTISTS!B2:B');
     }
 
-    const header = rows[0][0].trim(); // Should be 'ARTIST'
+    const header = rows[0][0].trim();
     if (header !== 'ARTIST') {
       throw new Error(`Expected header 'ARTIST' in ARTISTS!B1 but found '${header}'`);
     }
 
-    // Extract artist names from rows starting at index 1 (B2 onwards)
     const artistNames = rows.slice(1).map(r => r[0]?.trim()).filter(name => name);
-
-    // Map to objects like { ARTIST: "artistName" } to keep same interface as before
     return artistNames.map(name => ({ ARTIST: name }));
-
   } catch (err) {
     console.error('❌ Error fetching Google Sheet artist column B:', err);
     throw err;
@@ -201,13 +196,11 @@ app.post('/record-votes', async (req, res) => {
     const timestamp = new Date().toISOString();
     const db = admin.database();
 
-    // ✅ Fetch original artist name from artistOrder
     const artistOrderSnap = await db.ref('artistOrder').once('value');
     const artistOrder = artistOrderSnap.val() || [];
 
     const originalArtist = getOriginalArtistName(safeArtist, artistOrder);
 
-    // 🔄 Get all participants (guests + host)
     const [guestsSnap, hostSnap] = await Promise.all([
       db.ref('guests').once('value'),
       db.ref('host').once('value')
@@ -217,18 +210,15 @@ app.post('/record-votes', async (req, res) => {
     const hostList = hostSnap.val() || {};
     const allUsers = Object.keys({ ...guestList, ...hostList }).sort();
 
-    // ✅ Save votes in Firebase with original name preserved
     await db.ref(`votes/${safeArtist}`).set({
       originalName: originalArtist,
       votes: votes,
       timestamp
     });
 
-    // ✅ Build headers and row
     const headers = ['TIMESTAMP', 'ARTIST', ...allUsers];
     const row = [timestamp, originalArtist, ...allUsers.map(name => votes[name] || '')];
 
-    // ✅ Overwrite header row (A1)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: 'VOTES!A1',
@@ -238,7 +228,6 @@ app.post('/record-votes', async (req, res) => {
       },
     });
 
-    // ✅ Append the new vote row
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
       range: 'VOTES!A2',
@@ -260,7 +249,7 @@ app.post('/record-votes', async (req, res) => {
 
 app.get('/artist-info', async (req, res) => {
   try {
-    const artistData = await fetchGoogleSheet(); // your Google Sheets artist info
+    const artistData = await fetchGoogleSheet();
     const artistNames = {};
     const artistList = [];
 
@@ -298,7 +287,7 @@ app.post('/clear-sheet', async (req, res) => {
   try {
     await sheets.spreadsheets.values.clear({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'VOTES!A1:Z', // Adjust if your sheet range is larger
+      range: 'VOTES!A1:Z',
     });
 
     res.status(200).json({ message: '✅ Google Sheet cleared.' });
