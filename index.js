@@ -4,7 +4,6 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import admin from 'firebase-admin';
 import { google } from 'googleapis';
-import { get, ref, set } from 'firebase-admin/database';
 
 dotenv.config();
 
@@ -249,15 +248,16 @@ app.get('/artist-info', async (req, res) => {
       // collect track info if needed
     }
 
-    const artistOrderRef = ref(db, 'artistOrder');
-    let orderSnap = await get(artistOrderRef);
-    let artistOrder = orderSnap.val();
+    const db = admin.database();
+    const artistOrderRef = db.ref('artistOrder');
+    const orderSnap = await artistOrderRef.once('value');
+    let artistOrder = orderSnap.val(); // 👈 use `let` so it can be reassigned
 
     if (!artistOrder || !Array.isArray(artistOrder) || artistOrder.length === 0) {
       // Generate and save a new order
       artistOrder = [...artistList].sort(() => 0.5 - Math.random());
-      await set(artistOrderRef, artistOrder);
-      await set(ref(db, 'artistNames'), artistNames);
+      await artistOrderRef.set(artistOrder);
+      await db.ref('artistNames').set(artistNames);
       console.log('✅ Created and stored new artistOrder + artistNames');
     }
 
