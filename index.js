@@ -38,6 +38,13 @@ function getBasicAuthHeader() {
   return 'Basic ' + Buffer.from(creds).toString('base64');
 }
 
+function getOriginalArtistName(safeKeyName, artistOrder = []) {
+  const found = artistOrder.find(entry =>
+    typeof entry === 'object' && entry.safe === safeKeyName
+  );
+  return found?.original || safeKeyName;
+}
+
 app.get('/', (req, res) => {
   res.send('✅ Spotify Auth Server is running');
 });
@@ -168,7 +175,7 @@ app.post('/record-votes', async (req, res) => {
     const artistOrderSnap = await db.ref('artistOrder').once('value');
     const artistOrder = artistOrderSnap.val() || [];
 
-    const originalArtist = artistOrder.find(a => a.safe === safeArtist)?.original || safeArtist;
+    const originalArtist = getOriginalArtistName(safeArtist, artistOrder);
 
     // 🔄 Get all participants (guests + host)
     const [guestsSnap, hostSnap] = await Promise.all([
@@ -224,4 +231,22 @@ app.post('/record-votes', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
+});
+
+app.get('/artist-info', async (req, res) => {
+  try {
+    const db = admin.database();
+    const [orderSnap, namesSnap] = await Promise.all([
+      db.ref('artistOrder').once('value'),
+      db.ref('artistNames').once('value')
+    ]);
+
+    const order = orderSnap.val() || [];
+    const names = namesSnap.val() || {};
+
+    res.json({ order, names });
+  } catch (err) {
+    console.error('❌ Failed to fetch artist info:', err);
+    res.status(500).json({ error: 'Failed to fetch artist info' });
+  }
 });
