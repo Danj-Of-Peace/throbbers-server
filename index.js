@@ -160,6 +160,36 @@ function safeKey(name) {
   return name.replace(/[.#$/\[\]]/g, '_');
 }
 
+// ✅ Function to fetch artist data from "ARTISTS" tab, column B only (artists in B2:B)
+async function fetchGoogleSheet() {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'ARTISTS!B1:B', // Start at B1 to get header, then all artists below
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length < 2) {
+      throw new Error('No artist data found in column B.');
+    }
+
+    const header = rows[0][0].trim(); // Should be 'ARTIST'
+    if (header !== 'ARTIST') {
+      throw new Error(`Expected header 'ARTIST' in ARTISTS!B1 but found '${header}'`);
+    }
+
+    // Extract artist names from rows starting at index 1 (B2 onwards)
+    const artistNames = rows.slice(1).map(r => r[0]?.trim()).filter(name => name);
+
+    // Map to objects like { ARTIST: "artistName" } to keep same interface as before
+    return artistNames.map(name => ({ ARTIST: name }));
+
+  } catch (err) {
+    console.error('❌ Error fetching Google Sheet artist column B:', err);
+    throw err;
+  }
+}
+
 app.post('/record-votes', async (req, res) => {
   try {
     const { artist: safeArtist, votes } = req.body;
@@ -232,7 +262,6 @@ app.get('/artist-info', async (req, res) => {
   try {
     const artistData = await fetchGoogleSheet(); // your Google Sheets artist info
     const artistNames = {};
-    const trackMap = {};
     const artistList = [];
 
     for (const row of artistData) {
@@ -244,17 +273,14 @@ app.get('/artist-info', async (req, res) => {
         artistNames[safe] = artistName;
         artistList.push(safe);
       }
-
-      // collect track info if needed
     }
 
     const db = admin.database();
     const artistOrderRef = db.ref('artistOrder');
     const orderSnap = await artistOrderRef.once('value');
-    let artistOrder = orderSnap.val(); // 👈 use `let` so it can be reassigned
+    let artistOrder = orderSnap.val();
 
     if (!artistOrder || !Array.isArray(artistOrder) || artistOrder.length === 0) {
-      // Generate and save a new order
       artistOrder = [...artistList].sort(() => 0.5 - Math.random());
       await artistOrderRef.set(artistOrder);
       await db.ref('artistNames').set(artistNames);
