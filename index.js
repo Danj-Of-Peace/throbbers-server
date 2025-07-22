@@ -250,3 +250,17 @@ app.get('/artist-info', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch artist info' });
   }
 });
+
+app.post('/clear-sheet', async (req, res) => {
+  try {
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'VOTES!A1:Z', // Adjust if your sheet range is larger
+    });
+
+    res.status(200).json({ message: '✅ Google Sheet cleared.' });
+  } catch (err) {
+    console.error('❌ Failed to clear Google Sheet:', err);
+    res.status(500).json({ message: 'Failed to clear Google Sheet.' });
+  }
+});
