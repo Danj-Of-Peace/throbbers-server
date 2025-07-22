@@ -37,11 +37,17 @@ function getBasicAuthHeader() {
   return 'Basic ' + Buffer.from(creds).toString('base64');
 }
 
-function getOriginalArtistName(safeKeyName, artistOrder = []) {
+async function getOriginalArtistName(safeKeyName, artistOrder = []) {
   const found = artistOrder.find(entry =>
     typeof entry === 'object' && entry.safe === safeKeyName
   );
-  return found?.original || safeKeyName;
+  if (found?.original) return found.original;
+
+  // fallback: check artistNames in Firebase
+  const db = admin.database();
+  const namesSnap = await db.ref('artistNames').once('value');
+  const artistNames = namesSnap.val() || {};
+  return artistNames[safeKeyName] || safeKeyName;
 }
 
 app.get('/', (req, res) => {
@@ -199,7 +205,7 @@ app.post('/record-votes', async (req, res) => {
     const artistOrderSnap = await db.ref('artistOrder').once('value');
     const artistOrder = artistOrderSnap.val() || [];
 
-    const originalArtist = getOriginalArtistName(safeArtist, artistOrder);
+    const originalArtist = await getOriginalArtistName(safeArtist, artistOrder);
 
     const [guestsSnap, hostSnap] = await Promise.all([
       db.ref('guests').once('value'),
