@@ -159,9 +159,13 @@ app.post('/record-votes', async (req, res) => {
 
     const timestamp = new Date().toISOString();
 
-    // 🔄 Get all active participants (guests + host)
+    // 🔐 Safe key function for Firebase
+    const makeSafeKey = name => name.replace(/[.#$/\[\]]/g, '_');
+    const safeArtist = makeSafeKey(artist);
+
+    // 🔄 Get all participants (guests + host)
     const [guestsSnap, hostSnap] = await Promise.all([
-      admin.database().ref('guests').once('value'),  // changed from 'activeGuests'
+      admin.database().ref('guests').once('value'),
       admin.database().ref('host').once('value')
     ]);
 
@@ -169,13 +173,20 @@ app.post('/record-votes', async (req, res) => {
     const hostList = hostSnap.val() || {};
     const allUsers = Object.keys({ ...guestList, ...hostList }).sort();
 
-    // ✅ Create headers
+    // ✅ Save votes in Firebase with original name preserved
+    await admin.database().ref(`votes/${safeArtist}`).set({
+      originalName: artist,
+      votes: votes,
+      timestamp
+    });
+
+    // ✅ Create headers for Google Sheet
     const headers = ['TIMESTAMP', 'ARTIST', ...allUsers];
 
-    // ✅ Create row with votes or blank
+    // ✅ Build row with votes (or blank if no vote from person)
     const row = [timestamp, artist, ...allUsers.map(name => votes[name] || '')];
 
-    // ✅ Write headers once (overwrite A1 row)
+    // ✅ Overwrite header row (row 1)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: 'VOTES!A1',
@@ -185,8 +196,8 @@ app.post('/record-votes', async (req, res) => {
       },
     });
 
-    // ✅ Append the vote row under the header
-    const result = await sheets.spreadsheets.values.append({
+    // ✅ Append the vote row
+    await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
       range: 'VOTES!A2',
       valueInputOption: 'USER_ENTERED',
@@ -202,20 +213,6 @@ app.post('/record-votes', async (req, res) => {
   } catch (err) {
     console.error('❌ Failed to record votes:', err.response?.data || err.message || err);
     res.status(500).json({ error: 'Failed to record votes' });
-  }
-});
-
-app.post('/clear-sheet', async (req, res) => {
-  try {
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'VOTES!A1:Z', // Clear all data in the VOTES sheet
-    });
-
-    res.status(200).json({ message: '✅ Google Sheet cleared.' });
-  } catch (err) {
-    console.error('❌ Failed to clear Google Sheet:', err);
-    res.status(500).json({ message: 'Failed to clear Google Sheet.' });
   }
 });
 
