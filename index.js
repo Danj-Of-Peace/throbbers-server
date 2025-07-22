@@ -228,11 +228,6 @@ app.post('/record-votes', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-});
-
 app.get('/artist-info', async (req, res) => {
   try {
     const db = admin.database();
@@ -263,4 +258,9 @@ app.post('/clear-sheet', async (req, res) => {
     console.error('❌ Failed to clear Google Sheet:', err);
     res.status(500).json({ message: 'Failed to clear Google Sheet.' });
   }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
 });
