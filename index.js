@@ -21,8 +21,21 @@ admin.initializeApp({
 
 const app = express();
 
+// ✅ Fixed CORS setup
+const allowedOrigins = [
+  'https://throbbers-2025.web.app',
+  'https://throbbers-host.web.app'
+];
+
 app.use(cors({
-  origin: 'https://throbbers-2025.web.app'
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
 }));
 
 app.use(express.json());
