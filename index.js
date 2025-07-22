@@ -148,25 +148,32 @@ const auth = new google.auth.GoogleAuth({
 const sheets = google.sheets({ version: 'v4', auth });
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 
-// ✅ POST endpoint to record votes
+// ✅ Utility to safely encode Firebase keys
+function safeKey(name) {
+  return name.replace(/[.#$/\[\]]/g, '_');
+}
+
 app.post('/record-votes', async (req, res) => {
   try {
-    const { artist, votes } = req.body;
+    const { artist: safeArtist, votes } = req.body;
 
-    if (!artist || !votes || typeof votes !== 'object') {
+    if (!safeArtist || !votes || typeof votes !== 'object') {
       return res.status(400).json({ error: 'Invalid payload' });
     }
 
     const timestamp = new Date().toISOString();
+    const db = admin.database();
 
-    // 🔐 Safe key function for Firebase
-    const makeSafeKey = name => name.replace(/[.#$/\[\]]/g, '_');
-    const safeArtist = makeSafeKey(artist);
+    // ✅ Fetch original artist name from artistOrder
+    const artistOrderSnap = await db.ref('artistOrder').once('value');
+    const artistOrder = artistOrderSnap.val() || [];
+
+    const originalArtist = artistOrder.find(a => a.safe === safeArtist)?.original || safeArtist;
 
     // 🔄 Get all participants (guests + host)
     const [guestsSnap, hostSnap] = await Promise.all([
-      admin.database().ref('guests').once('value'),
-      admin.database().ref('host').once('value')
+      db.ref('guests').once('value'),
+      db.ref('host').once('value')
     ]);
 
     const guestList = guestsSnap.val() || {};
@@ -174,19 +181,17 @@ app.post('/record-votes', async (req, res) => {
     const allUsers = Object.keys({ ...guestList, ...hostList }).sort();
 
     // ✅ Save votes in Firebase with original name preserved
-    await admin.database().ref(`votes/${safeArtist}`).set({
-      originalName: artist,
+    await db.ref(`votes/${safeArtist}`).set({
+      originalName: originalArtist,
       votes: votes,
       timestamp
     });
 
-    // ✅ Create headers for Google Sheet
+    // ✅ Build headers and row
     const headers = ['TIMESTAMP', 'ARTIST', ...allUsers];
+    const row = [timestamp, originalArtist, ...allUsers.map(name => votes[name] || '')];
 
-    // ✅ Build row with votes (or blank if no vote from person)
-    const row = [timestamp, artist, ...allUsers.map(name => votes[name] || '')];
-
-    // ✅ Overwrite header row (row 1)
+    // ✅ Overwrite header row (A1)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: 'VOTES!A1',
@@ -196,7 +201,7 @@ app.post('/record-votes', async (req, res) => {
       },
     });
 
-    // ✅ Append the vote row
+    // ✅ Append the new vote row
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
       range: 'VOTES!A2',
