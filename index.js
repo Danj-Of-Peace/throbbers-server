@@ -204,7 +204,49 @@ async function fetchGoogleSheet() {
   }
 }
 
-// 📝 Record votes and log to Google Sheets
+// ... (your existing imports and setup remain unchanged)
+
+// === Google Sheets Setup ===
+
+// (your existing Google Sheets and Firebase setup)
+
+// Function to write headers once at server start
+async function writeHeadersOnce() {
+  try {
+    const db = admin.database();
+    const artistOrderSnap = await db.ref('artistOrder').once('value');
+    const artistOrder = artistOrderSnap.val() || [];
+
+    const [guestsSnap, hostSnap] = await Promise.all([
+      db.ref('guests').once('value'),
+      db.ref('host').once('value')
+    ]);
+
+    const guestList = guestsSnap.val() || {};
+    const hostList = hostSnap.val() || {};
+    const allUsers = Object.keys({ ...guestList, ...hostList }).sort();
+
+    const headers = ['TIMESTAMP', 'ARTIST', ...allUsers];
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'VOTES!A1',
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [headers],
+      },
+    });
+
+    console.log('✅ Google Sheets headers initialized');
+  } catch (err) {
+    console.error('❌ Failed to initialize Google Sheets headers:', err);
+  }
+}
+
+// Call header write on server startup
+writeHeadersOnce();
+
+// Updated /record-votes endpoint
 app.post('/record-votes', async (req, res) => {
   try {
     const { artist: safeArtist, votes } = req.body;
@@ -230,23 +272,20 @@ app.post('/record-votes', async (req, res) => {
     const hostList = hostSnap.val() || {};
     const allUsers = Object.keys({ ...guestList, ...hostList }).sort();
 
+    // Default missing votes to 'no'
+    allUsers.forEach(user => {
+      if (!(user in votes)) {
+        votes[user] = 'no';
+      }
+    });
+
     await db.ref(`votes/${safeArtist}`).set({
       originalName: originalArtist,
       votes,
       timestamp
     });
 
-    const headers = ['TIMESTAMP', 'ARTIST', ...allUsers];
-    const row = [timestamp, originalArtist, ...allUsers.map(name => votes[name] || '')];
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'VOTES!A1',
-      valueInputOption: 'RAW',
-      requestBody: {
-        values: [headers],
-      },
-    });
+    const row = [timestamp, originalArtist, ...allUsers.map(name => votes[name])];
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
@@ -266,6 +305,8 @@ app.post('/record-votes', async (req, res) => {
     res.status(500).json({ error: 'Failed to record votes' });
   }
 });
+
+// ... (rest of your existing routes and app.listen)
 
 // 📤 Expose artist info: { order: [], names: {} }
 app.get('/artist-info', async (req, res) => {
