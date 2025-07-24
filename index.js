@@ -204,49 +204,7 @@ async function fetchGoogleSheet() {
   }
 }
 
-// ... (your existing imports and setup remain unchanged)
-
-// === Google Sheets Setup ===
-
-// (your existing Google Sheets and Firebase setup)
-
-// Function to write headers once at server start
-async function writeHeadersOnce() {
-  try {
-    const db = admin.database();
-    const artistOrderSnap = await db.ref('artistOrder').once('value');
-    const artistOrder = artistOrderSnap.val() || [];
-
-    const [guestsSnap, hostSnap] = await Promise.all([
-      db.ref('guests').once('value'),
-      db.ref('host').once('value')
-    ]);
-
-    const guestList = guestsSnap.val() || {};
-    const hostList = hostSnap.val() || {};
-    const allUsers = Object.keys({ ...guestList, ...hostList }).sort();
-
-    const headers = ['TIMESTAMP', 'ARTIST', ...allUsers];
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'VOTES!A1',
-      valueInputOption: 'RAW',
-      requestBody: {
-        values: [headers],
-      },
-    });
-
-    console.log('✅ Google Sheets headers initialized');
-  } catch (err) {
-    console.error('❌ Failed to initialize Google Sheets headers:', err);
-  }
-}
-
-// Call header write on server startup
-writeHeadersOnce();
-
-// Updated /record-votes endpoint
+// 📝 Record votes and log to Google Sheets
 app.post('/record-votes', async (req, res) => {
   try {
     const { artist: safeArtist, votes } = req.body;
@@ -272,12 +230,12 @@ app.post('/record-votes', async (req, res) => {
     const hostList = hostSnap.val() || {};
     const allUsers = Object.keys({ ...guestList, ...hostList }).sort();
 
-    // Default missing votes to 'no'
-    allUsers.forEach(user => {
+    // Fill missing votes with "no"
+    for (const user of allUsers) {
       if (!(user in votes)) {
         votes[user] = 'no';
       }
-    });
+    }
 
     await db.ref(`votes/${safeArtist}`).set({
       originalName: originalArtist,
@@ -285,7 +243,26 @@ app.post('/record-votes', async (req, res) => {
       timestamp
     });
 
+    const headers = ['TIMESTAMP', 'ARTIST', ...allUsers];
     const row = [timestamp, originalArtist, ...allUsers.map(name => votes[name])];
+
+    // Check if headers already exist
+    const getSheetData = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'VOTES!A1:Z1',
+    });
+    const hasHeaders = getSheetData.data.values && getSheetData.data.values.length > 0;
+
+    if (!hasHeaders) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: 'VOTES!A1',
+        valueInputOption: 'RAW',
+        requestBody: {
+          values: [headers],
+        },
+      });
+    }
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
@@ -305,8 +282,6 @@ app.post('/record-votes', async (req, res) => {
     res.status(500).json({ error: 'Failed to record votes' });
   }
 });
-
-// ... (rest of your existing routes and app.listen)
 
 // 📤 Expose artist info: { order: [], names: {} }
 app.get('/artist-info', async (req, res) => {
