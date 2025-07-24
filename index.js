@@ -164,20 +164,40 @@ async function fetchGoogleSheet() {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'ARTISTS!B1:B',
+      range: 'ARTISTS!B1:L',
     });
 
     const rows = response.data.values;
     if (!rows || rows.length < 2) {
-      throw new Error('No artist data found in ARTISTS!B2:B');
+      throw new Error('No artist data found');
     }
 
-    const header = rows[0][0].trim();
-    if (header !== 'ARTIST') {
-      throw new Error(`Expected header 'ARTIST' in ARTISTS!B1 but found '${header}'`);
+    const header = rows[0];
+    if (header[0].trim() !== 'ARTIST') {
+      throw new Error(`Expected 'ARTIST' as header in column B but found '${header[0]}'`);
     }
 
-    return rows.slice(1).map(row => ({ ARTIST: row[0]?.trim() })).filter(r => r.ARTIST);
+    const data = rows.slice(1).map(row => {
+      const artist = row[0]?.trim();
+      if (!artist) return null;
+
+      const tracks = [];
+      for (let i = 1; i <= 5; i++) {
+        const name = row[i]?.trim();
+        const url = row[i + 5]?.trim(); // H=6, I=7, etc
+        if (name && url) {
+          tracks.push({ name, url });
+        }
+      }
+
+      return {
+        artist,
+        safe: safeKey(artist),
+        tracks
+      };
+    }).filter(Boolean);
+
+    return data;
   } catch (err) {
     console.error('❌ Google Sheet fetch error:', err);
     throw err;
@@ -250,18 +270,15 @@ app.post('/record-votes', async (req, res) => {
 // 📤 Expose artist info: { order: [], names: {} }
 app.get('/artist-info', async (req, res) => {
   try {
-    const artistData = await fetchGoogleSheet();
+    const data = await fetchGoogleSheet();
     const artistNames = {};
     const artistList = [];
+    const trackMap = {};
 
-    for (const row of artistData) {
-      const name = row.ARTIST?.trim();
-      if (!name) continue;
-      const safe = safeKey(name);
-      if (!artistNames[safe]) {
-        artistNames[safe] = name;
-        artistList.push(safe);
-      }
+    for (const row of data) {
+      artistNames[row.safe] = row.artist;
+      artistList.push(row.safe);
+      trackMap[row.safe] = row.tracks || [];
     }
 
     const db = admin.database();
@@ -276,7 +293,11 @@ app.get('/artist-info', async (req, res) => {
       console.log('✅ Stored new artistOrder and artistNames');
     }
 
-    res.json({ order: artistOrder, names: artistNames });
+    res.json({
+      order: artistOrder,
+      names: artistNames,
+      tracks: trackMap
+    });
 
   } catch (err) {
     console.error('❌ Failed to return artist info:', err);
