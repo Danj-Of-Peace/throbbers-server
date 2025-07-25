@@ -382,7 +382,8 @@ app.get('/extra-tracks', async (req, res) => {
       spotifyUrl: row[linkIdx] || '',
     })).filter(t => t.artist && t.track && t.spotifyUrl);
 
-    res.json({ extraTracks });
+    console.log('✅ Sending extra tracks:', extraTracks.length);
+res.json(extraTracks);
   } catch (err) {
     console.error('Failed to load extra tracks:', err);
     res.status(500).json({ error: 'Failed to load extra tracks' });
