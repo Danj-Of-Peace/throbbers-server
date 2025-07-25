@@ -360,23 +360,30 @@ app.get('/extra-tracks', async (req, res) => {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: '16qP3v4Q2QhdFyAmHA9VdevlJ_8SBtIikukgL5tUz6_g',
-      range: 'LINK!E:K', // Columns E-K, we'll extract E, F, K
+      range: 'LINK!D:K', // Include column D for PLACING
     });
 
     const rows = response.data.values || [];
 
-    // Find header indexes
-    const headers = rows[0];
-    const trackIdx = headers.indexOf('TRACK'); // likely 0 (E)
-    const artistIdx = headers.indexOf('ARTIST'); // likely 1 (F)
-    const linkIdx = headers.indexOf('LINKS'); // likely 5 (K - counting E=0,F=1,...K=5)
+    if (rows.length === 0) {
+      return res.status(500).json({ error: 'Sheet is empty' });
+    }
 
-    if (trackIdx === -1 || artistIdx === -1 || linkIdx === -1) {
-      return res.status(500).json({ error: 'Headers missing in sheet' });
+    const headers = rows[0];
+    // Now headers array corresponds to D:K columns, so headers[0] is PLACING, headers[1] is TRACK, etc.
+
+    const placingIdx = headers.indexOf('PLACING'); // should be 0 (column D)
+    const trackIdx = headers.indexOf('TRACK');     // should be 1 (E)
+    const artistIdx = headers.indexOf('ARTIST');   // should be 2 (F)
+    const linkIdx = headers.indexOf('LINKS');      // should be 7 (K)
+
+    if (placingIdx === -1 || trackIdx === -1 || artistIdx === -1 || linkIdx === -1) {
+      return res.status(500).json({ error: 'Required headers missing in sheet' });
     }
 
     // Map rows to objects, skipping header row
     const extraTracks = rows.slice(1).map(row => ({
+      placing: row[placingIdx] || '',
       artist: row[artistIdx] || '',
       track: row[trackIdx] || '',
       spotifyUrl: row[linkIdx] || '',
