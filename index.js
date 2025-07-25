@@ -356,6 +356,39 @@ app.get('/throb-count', async (req, res) => {
   }
 });
 
+app.get('/extra-tracks', async (req, res) => {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: '16qP3v4Q2QhdFyAmHA9VdevlJ_8SBtIikukgL5tUz6_g',
+      range: 'LINK!E:K', // Columns E-K, we'll extract E, F, K
+    });
+
+    const rows = response.data.values || [];
+
+    // Find header indexes
+    const headers = rows[0];
+    const trackIdx = headers.indexOf('TRACK'); // likely 0 (E)
+    const artistIdx = headers.indexOf('ARTIST'); // likely 1 (F)
+    const linkIdx = headers.indexOf('LINKS'); // likely 5 (K - counting E=0,F=1,...K=5)
+
+    if (trackIdx === -1 || artistIdx === -1 || linkIdx === -1) {
+      return res.status(500).json({ error: 'Headers missing in sheet' });
+    }
+
+    // Map rows to objects, skipping header row
+    const extraTracks = rows.slice(1).map(row => ({
+      artist: row[artistIdx] || '',
+      track: row[trackIdx] || '',
+      spotifyUrl: row[linkIdx] || '',
+    })).filter(t => t.artist && t.track && t.spotifyUrl);
+
+    res.json({ extraTracks });
+  } catch (err) {
+    console.error('Failed to load extra tracks:', err);
+    res.status(500).json({ error: 'Failed to load extra tracks' });
+  }
+});
+
 // 🧹 Clear Google Sheet vote logs
 app.post('/clear-sheet', async (req, res) => {
   try {
