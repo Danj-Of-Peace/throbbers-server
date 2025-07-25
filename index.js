@@ -321,7 +321,6 @@ app.get('/artist-info', async (req, res) => {
   }
 });
 
-// 🧮 Get throb count for a given host (number of 'yes' votes in their column)
 app.get('/throb-count', async (req, res) => {
   const host = req.query.host;
   if (!host) {
@@ -329,20 +328,30 @@ app.get('/throb-count', async (req, res) => {
   }
 
   try {
+    // Read header + data for columns A to Z (you can expand this if you have more columns)
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `VOTES!${host}:${host}` // e.g. VOTES!DANJ:DANJ
+      range: 'VOTES!A1:Z',
     });
 
-    const values = response.data.values || [];
-    const yesCount = values
-      .flat()
+    const rows = response.data.values || [];
+    const headerRow = rows[0] || [];
+
+    // Find the index of the host column (e.g., 'DANJ')
+    const columnIndex = headerRow.indexOf(host);
+    if (columnIndex === -1) {
+      return res.status(404).json({ error: `Host '${host}' not found in sheet header` });
+    }
+
+    // Count 'yes' votes in that column (skip header row)
+    const yesCount = rows.slice(1)
+      .map(row => row[columnIndex])
       .filter(v => typeof v === 'string' && v.trim().toLowerCase() === 'yes')
       .length;
 
     res.json({ count: yesCount });
   } catch (err) {
-    console.error('❌ Failed to get throb count:', err);
+    console.error('❌ Failed to get throb count:', err.message);
     res.status(500).json({ error: 'Failed to get throb count' });
   }
 });
