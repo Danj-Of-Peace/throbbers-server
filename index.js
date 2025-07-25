@@ -321,6 +321,32 @@ app.get('/artist-info', async (req, res) => {
   }
 });
 
+// 🧮 Get throb count for a given host (number of 'yes' votes in their column)
+app.get('/throb-count', async (req, res) => {
+  const host = req.query.host;
+  if (!host) {
+    return res.status(400).json({ error: 'Missing host parameter' });
+  }
+
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `VOTES!${host}:${host}` // e.g. VOTES!DANJ:DANJ
+    });
+
+    const values = response.data.values || [];
+    const yesCount = values
+      .flat()
+      .filter(v => typeof v === 'string' && v.trim().toLowerCase() === 'yes')
+      .length;
+
+    res.json({ count: yesCount });
+  } catch (err) {
+    console.error('❌ Failed to get throb count:', err);
+    res.status(500).json({ error: 'Failed to get throb count' });
+  }
+});
+
 // 🧹 Clear Google Sheet vote logs
 app.post('/clear-sheet', async (req, res) => {
   try {
