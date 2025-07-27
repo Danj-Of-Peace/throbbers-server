@@ -360,7 +360,7 @@ app.get('/extra-tracks', async (req, res) => {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: '16qP3v4Q2QhdFyAmHA9VdevlJ_8SBtIikukgL5tUz6_g',
-      range: 'LINK!D:K', // Include column D for PLACING
+      range: 'LINK!A:K', // Now includes column A (YEAR)
     });
 
     const rows = response.data.values || [];
@@ -370,19 +370,20 @@ app.get('/extra-tracks', async (req, res) => {
     }
 
     const headers = rows[0];
-    // Now headers array corresponds to D:K columns, so headers[0] is PLACING, headers[1] is TRACK, etc.
+    // Updated header indexes now that we're using A:K
+    const yearIdx = headers.indexOf('YEAR');       // column A
+    const placingIdx = headers.indexOf('PLACING'); // column D
+    const trackIdx = headers.indexOf('TRACK');     // column E
+    const artistIdx = headers.indexOf('ARTIST');   // column F
+    const linkIdx = headers.indexOf('LINKS');      // column K
 
-    const placingIdx = headers.indexOf('PLACING'); // should be 0 (column D)
-    const trackIdx = headers.indexOf('TRACK');     // should be 1 (E)
-    const artistIdx = headers.indexOf('ARTIST');   // should be 2 (F)
-    const linkIdx = headers.indexOf('LINKS');      // should be 7 (K)
-
-    if (placingIdx === -1 || trackIdx === -1 || artistIdx === -1 || linkIdx === -1) {
+    if (yearIdx === -1 || placingIdx === -1 || trackIdx === -1 || artistIdx === -1 || linkIdx === -1) {
       return res.status(500).json({ error: 'Required headers missing in sheet' });
     }
 
     // Map rows to objects, skipping header row
     const extraTracks = rows.slice(1).map(row => ({
+      year: row[yearIdx] || '',
       placing: row[placingIdx] || '',
       artist: row[artistIdx] || '',
       track: row[trackIdx] || '',
