@@ -204,6 +204,28 @@ async function fetchGoogleSheet() {
   }
 }
 
+// 📊 Fetch stats data from the 'DATA' sheet (columns A–D)
+async function fetchStatsData() {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'DATA!A2:D',
+    });
+
+    const rows = response.data.values || [];
+
+    return rows.map(([name, year, position, artists]) => ({
+      name: name?.trim() || '',
+      year: parseInt(year, 10) || null,
+      position: parseInt(position, 10) || null,
+      artists: artists?.trim() || ''
+    })).filter(row => row.name && row.artists); // skip empty rows
+  } catch (err) {
+    console.error('❌ Failed to fetch stats data:', err);
+    throw err;
+  }
+}
+
 // 📝 Record votes and log to Google Sheets
 app.post('/record-votes', async (req, res) => {
   try {
@@ -395,6 +417,16 @@ app.get('/extra-tracks', async (req, res) => {
   } catch (err) {
     console.error('Failed to load extra tracks:', err);
     res.status(500).json({ error: 'Failed to load extra tracks' });
+  }
+});
+
+// 📤 Serve stats data from the DATA sheet
+app.get('/stats-data', async (req, res) => {
+  try {
+    const stats = await fetchStatsData();
+    res.json({ stats });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load stats data' });
   }
 });
 
