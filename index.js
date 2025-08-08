@@ -343,6 +343,47 @@ app.get('/artist-info', async (req, res) => {
   }
 });
 
+// 📥 Get vote data per user from Google Sheets
+app.get('/user-votes', async (req, res) => {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'VOTES!B1:Z',
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length < 2) {
+      return res.status(400).json({ error: 'Insufficient data in VOTES sheet' });
+    }
+
+    const headerRow = rows[0]; // e.g. ['ARTISTS', 'USER1', 'USER2', ...]
+    const artistRows = rows.slice(1); // data starts from row 2
+
+    const userVotes = {};
+
+    for (let col = 1; col < headerRow.length; col++) {
+      const username = headerRow[col];
+      if (!username) continue;
+
+      userVotes[username] = [];
+
+      for (let row = 0; row < artistRows.length; row++) {
+        const artist = artistRows[row][0]?.trim();
+        const vote = artistRows[row][col]?.trim().toLowerCase();
+
+        if (artist && vote === 'yes') {
+          userVotes[username].push(artist);
+        }
+      }
+    }
+
+    res.json({ userVotes });
+  } catch (err) {
+    console.error('❌ Failed to fetch user votes:', err.message);
+    res.status(500).json({ error: 'Failed to fetch user votes' });
+  }
+});
+
 app.get('/throb-count', async (req, res) => {
   const host = req.query.host;
   if (!host) {
