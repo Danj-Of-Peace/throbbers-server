@@ -226,6 +226,16 @@ async function fetchStatsData() {
   }
 }
 
+// 📤 Serve stats data from the DATA sheet
+app.get('/stats-data', async (req, res) => {
+  try {
+    const stats = await fetchStatsData();
+    res.json({ stats });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load stats data' });
+  }
+});
+
 // 📝 Record votes and log to Google Sheets
 app.post('/record-votes', async (req, res) => {
   try {
@@ -458,16 +468,6 @@ app.get('/extra-tracks', async (req, res) => {
   } catch (err) {
     console.error('Failed to load extra tracks:', err);
     res.status(500).json({ error: 'Failed to load extra tracks' });
-  }
-});
-
-// 📤 Serve stats data from the DATA sheet
-app.get('/stats-data', async (req, res) => {
-  try {
-    const stats = await fetchStatsData();
-    res.json({ stats });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to load stats data' });
   }
 });
 
