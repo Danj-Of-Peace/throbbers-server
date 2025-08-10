@@ -486,6 +486,40 @@ app.post('/clear-sheet', async (req, res) => {
   }
 });
 
+// New endpoint for aggregated artists per user
+app.get('/stats-data-aggregated', async (req, res) => {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'DATA!A2:D',
+    });
+
+    const rows = response.data.values || [];
+
+    // Aggregate artists per user (column A = name, column D = artist)
+    const userArtistsMap = {};
+
+    rows.forEach(([name, year, position, artists]) => {
+      if (!name || !artists) return;
+
+      const userKey = name.trim();
+      const artistName = artists.trim();
+
+      if (!userArtistsMap[userKey]) {
+        userArtistsMap[userKey] = [];
+      }
+
+      userArtistsMap[userKey].push(artistName);
+    });
+
+    res.json(userArtistsMap);
+
+  } catch (err) {
+    console.error('❌ Failed to fetch aggregated stats data:', err);
+    res.status(500).json({ error: 'Failed to load aggregated stats data' });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
