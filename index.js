@@ -520,6 +520,33 @@ app.get('/stats-data-aggregated', async (req, res) => {
   }
 });
 
+// 📝 Record Stage 6 Top 10 artists to DATA tab
+app.post('/record-data', async (req, res) => {
+  try {
+    const { rows } = req.body;
+    if (!rows || !Array.isArray(rows)) {
+      return res.status(400).json({ error: 'Invalid payload, expected "rows" array' });
+    }
+
+    // Append to DATA tab
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'DATA!A1',
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: {
+        values: rows,
+      },
+    });
+
+    console.log(`✅ Recorded ${rows.length} rows to DATA tab`);
+    res.status(200).json({ success: true, rows: rows.length });
+  } catch (err) {
+    console.error('❌ Failed to record DATA:', err);
+    res.status(500).json({ error: 'Failed to record DATA' });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
