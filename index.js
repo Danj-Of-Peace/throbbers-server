@@ -532,7 +532,7 @@ app.post('/record-data', async (req, res) => {
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
       range: 'DATA!A1',
-      valueInputOption: 'USER_ENTERED',
+      valueInputOption: 'RAW', // <-- changed from USER_ENTERED
       insertDataOption: 'INSERT_ROWS',
       requestBody: {
         values: rows,
